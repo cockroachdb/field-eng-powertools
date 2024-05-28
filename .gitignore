@@ -4,8 +4,6 @@
 *.dll
 *.so
 *.dylib
-cdc-sink
-replicator
 
 # Test binary, built with `go test -c`
 *.test
@@ -16,12 +14,3 @@ replicator
 # Dependency directories (remove the comment below to include it)
 # vendor/
 
-# CockroachDB data directory
-cockroach-data/
-goroutine_dump/
-heap_profiler/
-
-# Package working directory
-upload/
-
-go.work
