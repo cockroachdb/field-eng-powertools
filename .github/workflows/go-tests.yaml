@@ -63,7 +63,7 @@ jobs:
       # through the licenses subcommand.
       - name: License Checks
         if: ${{ !cancelled() }}
-        run: go run github.com/google/go-licenses check .
+        run: go run github.com/google/go-licenses check ./...
 
   tests:
     name: Go Tests
