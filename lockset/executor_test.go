@@ -447,3 +447,46 @@ func TestDedup(t *testing.T) {
 	// Ensure that the source was not modified.
 	r.Equal(src, cpy)
 }
+
+func TestPhilosophers(t *testing.T) {
+	ctx := context.Background()
+
+	dine := func(ctx context.Context, chopsticks []string) error {
+		return nil
+	}
+
+	// Construct a new executor that will control access to resources identified by strings
+	exe := NewExecutor[string](GoRunner(ctx))
+
+	// log completion, for testing
+	log := make([]string, 0)
+	mu := sync.Mutex{}
+
+	monitoring := &Events[string]{
+		OnComplete: func(task Task[string], sinceScheduled time.Duration) {
+			mu.Lock()
+			defer mu.Unlock()
+			log = append(log, task.Keys()...)
+		},
+	}
+
+	exe.SetEvents(monitoring)
+
+	// Set up our tasks, with the usual dining-philosophers constraints: five actors, five "forks" labeled a-e
+	alice := TaskFunc([]string{"a", "b"}, dine)
+	bob := TaskFunc([]string{"b", "c"}, dine)
+	carol := TaskFunc([]string{"c", "d"}, dine)
+	dave := TaskFunc([]string{"d", "e"}, dine)
+	eve := TaskFunc([]string{"e", "a"}, dine)
+
+	aliceOut, _ := exe.Schedule(alice)
+	bobOut, _ := exe.Schedule(bob)
+	carolOut, _ := exe.Schedule(carol)
+	daveOut, _ := exe.Schedule(dave)
+	eveOut, _ := exe.Schedule(eve)
+
+	r := require.New(t)
+
+	r.NoError(Wait(ctx, []Outcome{aliceOut, bobOut, carolOut, daveOut, eveOut}))
+	r.Equal([]string{"a", "b", "b", "c", "c", "d", "d", "e", "e", "a"}, log)
+}
