@@ -51,7 +51,7 @@ func TestVar(t *testing.T) {
 	// Verify we see the new value.
 	current, ch2 := v.Get()
 	r.Equal(1, current)
-	r.NotSame(ch, ch2)
+	r.NotEqual(ch, ch2)
 
 	// Read-locked callback.
 	unchangedCh, err := v.Peek(func(value int) error {

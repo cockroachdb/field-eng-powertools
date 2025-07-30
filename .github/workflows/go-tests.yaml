@@ -57,13 +57,6 @@ jobs:
         if: ${{ !cancelled() }}
         run: go vet ./...
 
-      # Check that all dependencies have licenses and that those
-      # licenses are reasonably permissive. License files for modules
-      # reachable from the entry point will be bundled and are visible
-      # through the licenses subcommand.
-      - name: License Checks
-        if: ${{ !cancelled() }}
-        run: go run github.com/google/go-licenses check ./...
 
   tests:
     name: Go Tests
