@@ -1,6 +1,6 @@
 module github.com/cockroachdb/field-eng-powertools/internal/tools
 
-go 1.23.0
+go 1.24.0
 
 require (
 	github.com/cockroachdb/crlfmt v0.3.0
