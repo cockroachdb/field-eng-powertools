@@ -1,6 +1,6 @@
 module github.com/cockroachdb/field-eng-powertools
 
-go 1.24.0
+go 1.25.0
 
 require (
 	github.com/cockroachdb/cockroach-go/v2 v2.4.3
@@ -9,7 +9,7 @@ require (
 	github.com/sethvargo/go-retry v0.3.0
 	github.com/stretchr/testify v1.11.1
 	golang.org/x/mod v0.33.0
-	golang.org/x/sync v0.19.0
+	golang.org/x/sync v0.20.0
 )
 
 require (
