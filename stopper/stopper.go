@@ -16,6 +16,12 @@
 
 // Package stopper contains a utility class for gracefully terminating
 // long-running processes.
+//
+// Values attached to a context above a stopper (for example, an OpenTelemetry
+// span installed by HTTP middleware or a runtime/trace task) are not visible
+// through [From], which only walks toward the root of the context chain. Use
+// [FromDelegate] at boundaries where the incoming context may carry such
+// values and you want a Context that can see them.
 package stopper
 
 import (
@@ -32,6 +38,7 @@ type contextKey struct{}
 var background = &Context{
 	delegate: context.Background(),
 	stopping: make(chan struct{}),
+	mu:       &lifecycle{},
 }
 
 // ErrStopped will be returned from [context.Cause] when the Context has
@@ -58,13 +65,20 @@ type Context struct {
 	stopping chan struct{}
 	parent   *Context
 
-	mu struct {
-		sync.RWMutex
-		count    int
-		deferred []func()
-		err      error
-		stopping bool
-	}
+	// mu is a pointer so that wrappers produced by FromDelegate can
+	// share the same lifecycle bookkeeping as the original.
+	mu *lifecycle
+}
+
+// lifecycle holds the mutex-protected bookkeeping shared by a Context and
+// any wrappers created via FromDelegate. It is referenced by pointer so
+// that the wrappers and the original observe and mutate the same state.
+type lifecycle struct {
+	sync.RWMutex
+	count    int
+	deferred []func()
+	err      error
+	stopping bool
 }
 
 var _ context.Context = (*Context)(nil)
@@ -79,6 +93,10 @@ func Background() *Context { return background }
 //
 // If the chain is not associated with a Context, the [Background]
 // instance will be returned.
+//
+// See [FromDelegate] when ctx is derived from a stopper and may carry
+// additional values (OTel spans, runtime/trace tasks) that the returned
+// Context would otherwise hide.
 func From(ctx context.Context) *Context {
 	if s, ok := ctx.(*Context); ok {
 		return s
@@ -87,6 +105,39 @@ func From(ctx context.Context) *Context {
 		return s.(*Context)
 	}
 	return Background()
+}
+
+// FromDelegate is like [From] but returns a Context whose Value,
+// Deadline, Done, and Err methods delegate to ctx, while Stop, Go, Defer,
+// Stopping, and Wait still act on the original stopper installed in ctx.
+// The common shape at HTTP boundaries is:
+//
+//	stop := stopper.FromDelegate(req.Context())
+//
+// Use this when a foreign library has added values above the stopper, for
+// example an OpenTelemetry span installed by middleware, a runtime/trace
+// task, or any context.WithValue layered on top, and downstream code
+// needs a stopper that can see them.
+//
+// When ctx does not have a stopper installed, FromDelegate returns
+// [Background] unchanged and the values in ctx are not preserved.
+//
+// Stacking FromDelegate calls is safe: nested wrappers share one
+// lifecycle with the original stopper rather than forming a chain.
+// Values added at any layer of the context chain remain visible because
+// Value lookup still walks through each delegate.
+func FromDelegate(ctx context.Context) *Context {
+	c := From(ctx)
+	if c == background {
+		return c
+	}
+	return &Context{
+		cancel:   c.cancel,
+		delegate: ctx,
+		stopping: c.stopping,
+		parent:   c.parent,
+		mu:       c.mu,
+	}
 }
 
 // IsStopping is a convenience method to determine if a stopper is
@@ -110,6 +161,7 @@ func WithContext(ctx context.Context) *Context {
 		delegate: ctx,
 		parent:   parent,
 		stopping: make(chan struct{}),
+		mu:       &lifecycle{},
 	}
 
 	// Propagate a parent stop or context cancellation into a Stop call
