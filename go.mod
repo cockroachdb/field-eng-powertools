@@ -5,7 +5,7 @@ go 1.25.0
 require (
 	github.com/cockroachdb/cockroach-go/v2 v2.4.3
 	github.com/google/uuid v1.6.0
-	github.com/jackc/pgx/v5 v5.9.2
+	github.com/jackc/pgx/v5 v5.10.0
 	github.com/sethvargo/go-retry v0.3.0
 	github.com/stretchr/testify v1.11.1
 	golang.org/x/mod v0.36.0
