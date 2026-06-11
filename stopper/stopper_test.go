@@ -280,3 +280,111 @@ func TestUnused(t *testing.T) {
 	a.ErrorIs(context.Cause(s), ErrStopped)
 	a.Nil(s.Wait())
 }
+
+func TestFromDelegateSeesDescendantValues(t *testing.T) {
+	a := assert.New(t)
+
+	type ctxKey struct{}
+	s := WithContext(context.Background())
+	withVal := context.WithValue(s, ctxKey{}, "v")
+
+	// Sanity check: the original stopper cannot see values attached
+	// above it in the chain.
+	a.Nil(s.Value(ctxKey{}))
+
+	// FromDelegate surfaces the value.
+	a.Equal("v", FromDelegate(withVal).Value(ctxKey{}))
+}
+
+func TestFromDelegatePreservesLifecycle(t *testing.T) {
+	a := assert.New(t)
+
+	type ctxKey struct{}
+
+	// Stop on the original cancels a goroutine started via the wrapper,
+	// and the wrapper's Done channel fires once the goroutine exits.
+	{
+		s := WithContext(context.Background())
+		delegated := FromDelegate(context.WithValue(s, ctxKey{}, "v"))
+
+		done := make(chan struct{})
+		a.True(delegated.Go(func(ctx *Context) error {
+			<-ctx.Stopping()
+			close(done)
+			return nil
+		}))
+
+		s.Stop(time.Second)
+		select {
+		case <-done:
+		// OK
+		case <-time.After(time.Second):
+			a.Fail("delegated goroutine did not exit after s.Stop")
+		}
+		select {
+		case <-delegated.Done():
+		// OK
+		case <-time.After(time.Second):
+			a.Fail("delegated.Done() did not fire after s.Stop")
+		}
+	}
+
+	// Stop on the wrapper cancels a goroutine started via the original,
+	// and the wrapper's Done channel fires once the goroutine exits.
+	{
+		s := WithContext(context.Background())
+		delegated := FromDelegate(context.WithValue(s, ctxKey{}, "v"))
+
+		done := make(chan struct{})
+		a.True(s.Go(func(ctx *Context) error {
+			<-ctx.Stopping()
+			close(done)
+			return nil
+		}))
+
+		delegated.Stop(time.Second)
+		select {
+		case <-done:
+		// OK
+		case <-time.After(time.Second):
+			a.Fail("original goroutine did not exit after delegated.Stop")
+		}
+		select {
+		case <-delegated.Done():
+		// OK
+		case <-time.After(time.Second):
+			a.Fail("delegated.Done() did not fire after delegated.Stop")
+		}
+	}
+}
+
+func TestFromDelegateDeadline(t *testing.T) {
+	a := assert.New(t)
+
+	s := WithContext(context.Background())
+
+	// The stopper alone has no deadline.
+	_, ok := s.Deadline()
+	a.False(ok)
+
+	deadline := time.Now().Add(10 * time.Millisecond)
+	ctx, cancel := context.WithDeadline(s, deadline)
+	defer cancel()
+
+	got, ok := FromDelegate(ctx).Deadline()
+	a.True(ok)
+	a.WithinDuration(deadline, got, time.Millisecond)
+}
+
+func TestFromDelegateBackgroundReturnsBackground(t *testing.T) {
+	a := assert.New(t)
+
+	// When ctx has no stopper installed, FromDelegate returns Background
+	// and the values in ctx are not preserved.
+	type ctxKey struct{}
+	ctx := context.WithValue(context.Background(), ctxKey{}, "v")
+
+	fd := FromDelegate(ctx)
+	a.Same(background, fd)
+	a.Nil(fd.Value(ctxKey{}))
+}
