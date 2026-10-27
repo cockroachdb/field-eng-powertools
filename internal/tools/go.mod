@@ -6,7 +6,7 @@ require (
 	github.com/cockroachdb/crlfmt v0.5.2
 	github.com/google/addlicense v1.2.0
 	golang.org/x/lint v0.0.0-20241112194109-818c5a804067
-	golang.org/x/tools v0.51.0
+	golang.org/x/tools v0.52.0
 	honnef.co/go/tools v0.8.2
 )
 
@@ -16,5 +16,5 @@ require (
 	github.com/stretchr/testify v1.12.1 // indirect
 	golang.org/x/exp/typeparams v0.0.0-20250718183923-645b1fa84792 // indirect
 	golang.org/x/mod v0.42.0 // indirect
-	golang.org/x/sync v0.23.0 // indirect
+	golang.org/x/sync v0.24.0 // indirect
 )
